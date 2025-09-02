@@ -1,0 +1,8 @@
+pymupdf
+unidecode
+numpy
+faiss-cpu
+tiktoken
+google-generativeai
+rank-bm25
+rapidfuzz
