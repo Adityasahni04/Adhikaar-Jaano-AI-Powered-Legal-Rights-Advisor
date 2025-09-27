@@ -27,6 +27,8 @@ import uuid
 import argparse
 import unicodedata
 from typing import List, Dict, Any
+from dotenv import load_dotenv   # NEW
+load_dotenv()                    # Load .env before reading keys
 
 import fitz                                    # pip install pymupdf
 from unidecode import unidecode                # pip install unidecode
