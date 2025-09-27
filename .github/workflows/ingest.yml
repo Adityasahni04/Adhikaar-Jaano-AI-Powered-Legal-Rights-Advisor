@@ -1,0 +1,40 @@
+name: Daily PDF Ingestion
+
+# Run every day at 2 AM UTC
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout your repo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Set up Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements1.txt
+
+      # 4. Set environment variables (use GitHub Secrets)
+      - name: Set AWS credentials
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}" >> $GITHUB_ENV
+
+      # 5. Run ingestion script
+      - name: Run PDF ingestion
+        run: |
+          python3 path/to/data-automationcode.py

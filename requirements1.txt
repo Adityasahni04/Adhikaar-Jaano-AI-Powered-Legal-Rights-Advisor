@@ -6,3 +6,5 @@ tiktoken
 google-generativeai
 rank-bm25
 rapidfuzz
+boto3
+python-dotenv
