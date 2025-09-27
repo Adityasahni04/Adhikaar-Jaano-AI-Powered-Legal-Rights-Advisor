@@ -112,10 +112,13 @@ def ingest_pdfs_s3(batch_size=BATCH_SIZE):
         return
 
     batch = all_pdfs[:batch_size]
-    print(f"Processing batch of {len(batch)} PDFs...")
+    print(f"📂 Found {len(all_pdfs)} unprocessed PDFs in bucket")
+    print(f"🚀 Starting batch of {len(batch)} PDFs...")
 
     download_generated_files()
     index = load_faiss_index()
+
+    processed_count = 0
 
     for key in batch:
         local_file = key.split("/")[-1]
@@ -127,21 +130,28 @@ def ingest_pdfs_s3(batch_size=BATCH_SIZE):
         try:
             subprocess.run(cmd, check=True)
             append_log(key)
-            # Optionally: update FAISS index if rag1.py returns embedding
-            # embedding = get_embedding(local_file)
-            # index.add(embedding)
+
+            # ✅ Delete from S3 after successful processing
+            s3.delete_object(Bucket=BUCKET_NAME, Key=key)
+            print(f"🗑️ Deleted {key} from S3.")
+
+            processed_count += 1
+
         except subprocess.CalledProcessError as e:
             print(f"❌ Error ingesting {key}: {e}")
             break
 
-        try:
-            os.remove(local_file)
-        except Exception as e:
-            print(f"⚠️ Could not delete {local_file}: {e}")
+        finally:
+            # ✅ Always delete local file (success or fail)
+            if os.path.exists(local_file):
+                os.remove(local_file)
+                print(f"🧹 Deleted local file {local_file}")
 
     save_faiss_index(index)
     upload_generated_files()
-    print("✅ Finished batch. Remaining PDFs will be processed in next run.")
+
+    print(f"✅ Batch complete: {processed_count}/{len(batch)} PDFs processed")
+    print(f"📊 Total processed so far (including previous runs): {len(processed_files) + processed_count}")
 
 # ================= Entry Point =================
 if __name__ == "__main__":
