@@ -1,7 +1,10 @@
+
 import os
 import subprocess
 import boto3
 import faiss
+import time
+import random
 
 # ================= Configuration =================
 BUCKET_NAME = "my-judgments-bucket01"
@@ -102,6 +105,23 @@ def save_faiss_index(index):
     s3.upload_file(LOCAL_FAISS, BUCKET_NAME, FAISS_KEY)
     print("✅ FAISS index uploaded to S3.")
 
+# ================= Safe Subprocess Runner =================
+def run_with_retries(cmd, retries=3, delay=5):
+    """Run a subprocess with retries for transient errors."""
+    for attempt in range(1, retries + 1):
+        try:
+            subprocess.run(cmd, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Subprocess failed on attempt {attempt}: {e}")
+            if attempt < retries:
+                wait = delay * attempt + random.uniform(0, 2)
+                print(f"⏳ Retrying in {wait:.1f}s...")
+                time.sleep(wait)
+            else:
+                print("🚨 Max retries reached. Skipping this file.")
+                return False
+
 # ================= Main Ingestion =================
 def ingest_pdfs_s3(batch_size=BATCH_SIZE):
     processed_files = load_log()
@@ -127,25 +147,19 @@ def ingest_pdfs_s3(batch_size=BATCH_SIZE):
         cmd = ["python3", "rag1.py", "--ingest", local_file, "--append"]
         print("Running:", " ".join(cmd))
 
-        try:
-            subprocess.run(cmd, check=True)
-            append_log(key)
+        success = run_with_retries(cmd)
 
+        if success:
+            append_log(key)
             # ✅ Delete from S3 after successful processing
             s3.delete_object(Bucket=BUCKET_NAME, Key=key)
             print(f"🗑️ Deleted {key} from S3.")
-
             processed_count += 1
 
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error ingesting {key}: {e}")
-            break
-
-        finally:
-            # ✅ Always delete local file (success or fail)
-            if os.path.exists(local_file):
-                os.remove(local_file)
-                print(f"🧹 Deleted local file {local_file}")
+        # ✅ Always clean up local file
+        if os.path.exists(local_file):
+            os.remove(local_file)
+            print(f"🧹 Deleted local file {local_file}")
 
     save_faiss_index(index)
     upload_generated_files()
@@ -155,6 +169,6 @@ def ingest_pdfs_s3(batch_size=BATCH_SIZE):
 
 # ================= Entry Point =================
 if __name__ == "__main__":
-    # Only reset log if you want a fresh start
     # reset_log()  # Uncomment to start from scratch
     ingest_pdfs_s3()
+
